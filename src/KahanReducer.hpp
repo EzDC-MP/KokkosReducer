@@ -85,14 +85,14 @@ struct Scalarhilo
       //printf("err: %.e\n", err);
 
       hi = sum;
-      lo += x.lo + err;
+      lo += x.lo + (AccumulatorType)err;
 
       return *this;
     }
 
   //finalize (number + error)
     KOKKOS_INLINE_FUNCTION
-    ScalarType finalize(){return this->hi + this->lo;} 
+    ScalarType finalize(){return this->hi + (ScalarType)this->lo;} 
 
 };
 
@@ -103,5 +103,21 @@ namespace Kokkos { //reduction identity must be defined in Kokkos namespace
       KOKKOS_FORCEINLINE_FUNCTION static 
       Scalarhilo<ScalarType, AccumulatorType> sum() 
       {return Scalarhilo<ScalarType,AccumulatorType>();}
+   };
+  
+   template <>
+   struct reduction_identity< __bf16 > 
+   {
+      KOKKOS_FORCEINLINE_FUNCTION static 
+      __bf16 sum() 
+      {return (__bf16)0.0;}
+   };
+   
+   template <>
+   struct reduction_identity< _Float16 > 
+   {
+      KOKKOS_FORCEINLINE_FUNCTION static 
+      _Float16 sum() 
+      {return (_Float16)0.0;}
    };
 }
