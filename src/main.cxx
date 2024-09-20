@@ -5,6 +5,8 @@
 #include <iostream>
 
 #include "Arrays.hpp"
+#include "WorstCaseArrays.hpp"
+
 template <typename FloatType, typename ArrayType>
 void PerformReduction(ArrayType arr, int N, FloatType& res) // dummy to let the compiler the type returned - horrible botch.
 {
@@ -328,10 +330,73 @@ label:
   AllPrint();
   ShowDiffFp64();
 
-  printf("\n\n### Reduction on 16384 float16 ##############################\n");
+  printf("\n\n### Reduction on 16384 float16 #############################\n");
   AllReduce(_Float16_16384p19_wxcse, 16384);
   AllPrint();
   ShowDiffFp64();
+  
+  /*
+  printf("\n\n### Reduction on 512 positive ordered float16 (asc) ########\n");
+  AllReduce(_Float16_512p19_iaqtn_sorted, 512);
+  AllPrint();
+  ShowDiffFp64();
+
+  printf("\n\n### Reduction on 4096 positive ordered float16 (asc) #######\n");
+  AllReduce(_Float16_4096p19_bauck_sorted, 4096);
+  AllPrint();
+  ShowDiffFp64();
+
+  printf("\n\n### Reduction on 512 positive ordered float16 (dsc) ########\n");
+  AllReduce(_Float16_512p19_kjtxi_sorted_reverse, 512);
+  AllPrint();
+  ShowDiffFp64();
+
+  printf("\n\n### Reduction on 4096 positive ordered float16 (dsc) #######\n");
+  AllReduce(_Float16_4096p19_cetsx_sorted_reverse, 4096);
+  AllPrint();
+  ShowDiffFp64();
+  */
+
+  printf("\n\n### Reduction on 4096 positive float16 #####################\n");
+  AllReduce(_Float16_4096p19_jdygv, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  
+  printf("\n\n### Reduction on 4096 positive ordered float16 (asc) #######\n");
+  AllReduce(_Float16_4096p19_jdygv_sorted, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  
+  printf("\n\n### Reduction on 4096 positive ordered float16 (dsc) #######\n");
+  AllReduce(_Float16_4096p19_jdygv_sorted_rev, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  
+  /* 
+  omp_set_dynamic(0);  
+  omp_set_num_threads(1);
+
+  printf("\n\n### Reduction on 4096 positive float16 (single thread) #####\n");
+  AllReduce(_Float16_4096p19_jdygv, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  
+  printf("\n\n### Reduction on 4096 positive ordered float16 (asc single thread)\n");
+  AllReduce(_Float16_4096p19_jdygv_sorted, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  
+  printf("\n\n### Reduction on 4096 positive ordered float16 (des single thread)\n");
+  AllReduce(_Float16_4096p19_jdygv_sorted_rev, 4096);
+  //AllPrint();
+  ShowDiffFp64();
+  */
+  
+  printf("\n\n### Reduction on 4096 positive double (bad) #######\n");
+  AllReduce(worstCase_4096, 4096);
+  AllPrint();
+  ShowDiffFp64();
+
   }
 
   Kokkos::finalize();

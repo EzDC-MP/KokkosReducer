@@ -31,6 +31,13 @@ def nonNanRandomFloat(typef):
 def positiveNonNanFloat(typef):
     return abs(nonNanRandomFloat(typef))
 
+def worstCaseSimple(N):
+    L = []
+    L.append(1.0)
+    for i in range(N-1):
+        L.append(1.1102230246251565E-16) #2**-53
+    return L
+
 if __name__=='__main__':
     try:
         N = int(sys.argv[1])
@@ -50,22 +57,61 @@ if __name__=='__main__':
     try:
         typef = sys.argv[4]
     except IndexError:
-        typef = "float"
-
+        typef = "float" 
+    
     try:
         name = sys.argv[5]
     except IndexError:
         name = ''.join(random.sample(string.ascii_lowercase,5))
 
     arrayname = typef+"_"+str(N)+"p"+str(prec)+"_"+name
-
+    """
+    #''' <-- add or remove # to toggle
+    #unsorted
     print(typef+" "+arrayname+"["+str(N)+"] = {", end="")
     for i in range(N):
         if not((i % n)): #return line
             print("\n",end="") 
-        #floatval = positiveNonNanFloat(typef)
-        floatval = nonNanRandomFloat(typef)
-        printFloat(floatval, prec, PLUSIGN=True)
+        floatval = positiveNonNanFloat(typef)
+        #floatval = nonNanRandomFloat(typef)
+        printFloat(floatval, prec, PLUSIGN=False)
         print(",",end="\t")
     print("\n};")
+    ''' 
+    #sorted
+    floatList = [positiveNonNanFloat(typef) for i in range(N)]
+    print(typef+" "+arrayname+"["+str(N)+"] = {", end="")
+    for i in range(N):
+        if not((i % n)): #return line
+            print("\n",end="")
+        printFloat(floatList[i], prec, PLUSIGN=False)
+        print(",",end="\t")
+    print("\n};\n")
+    floatList.sort()
+    print(typef+" "+arrayname+"_sorted["+str(N)+"] = {", end="")
+    for i in range(N):
+        if not((i % n)): #return line
+            print("\n",end="")
+        printFloat(floatList[i], prec, PLUSIGN=False)
+        print(",",end="\t")
+    print("\n};\n")
+    floatList.reverse()
+    print(typef+" "+arrayname+"_sorted_rev["+str(N)+"] = {", end="")
+    for i in range(N):
+        if not((i % n)): #return line
+            print("\n",end="")
+        printFloat(floatList[i], prec, PLUSIGN=False)
+        print(",",end="\t")
+    print("\n};")
+    #'''
+    """
+    worst = worstCaseSimple(N)
+    print("double worstCaseSimple_"+str(N)+"["+str(N)+"] = {", end="")
+    for i in range(N):
+        if not((i % n)): #return line
+            print("\n",end="") 
+        printFloat(worst[i] , prec, PLUSIGN=False)
+        print(",",end="\t")
+    print("\n};\n")
+
     exit(0) 
