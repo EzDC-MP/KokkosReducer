@@ -89,7 +89,7 @@ struct Scalarhilo
 
       return *this;
     }
-
+  
   //finalize (number + error)
     KOKKOS_INLINE_FUNCTION
     ScalarType finalize(){return this->hi + (ScalarType)this->lo;} 
@@ -121,3 +121,7 @@ namespace Kokkos { //reduction identity must be defined in Kokkos namespace
       {return (_Float16)0.0;}
    };
 }
+
+template <typename ScalarType, typename AccumulatorType=ScalarType>
+double operator-(double const& l, Scalarhilo<ScalarType, AccumulatorType> const& r)
+  {return (l - r.hi) - r.lo;} 
