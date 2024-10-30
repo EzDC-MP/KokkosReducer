@@ -1,7 +1,7 @@
 // Enzo De Carvalho Bittencourt <ezdecarvalho@gmail.com>
 // Error Free Transform reducer using Kahan Summation for Kokkos
 #include <Kokkos_Core.hpp>
-#include "KahanReducer.hpp"
+#include "CompensatedReducer.hpp"
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -9,7 +9,8 @@
 
 #include "Arrays.hpp"
 #include "WorstCaseArrays.hpp"
-
+#include "LargeWorstCaseArrays.hpp" //This loads 1.6MB !
+																		
 template <typename FloatType, typename ArrayType>
 void PerformReduction(ArrayType arr, int N, FloatType& res) 
 {
@@ -26,6 +27,19 @@ inline void PerformRedSingleThread(ArrayType arr, int N, FloatType& res)
   {res += arr[i];} //add stuff..
 }
 
+//returns the number of significand depending on num and err 
+inline const int significand(double num, double err)
+{
+	if ((num == 0) && (err == 0)){return std::numeric_limits<int>::max();}//+inf
+	if (num != 0)
+	{	
+		double relat = fabs(err/num);
+		if (relat > 1){return 0;}
+		return (int)std::floor(- std::log2(relat));	
+	}
+	return 0;	
+} 
+
 #define quote(x) #x
 #define title(text) printf( quote(\n\e[35;4m text \e[0m\n) )
 #define subtitle(text) printf( quote(\n\n\e[32;1m text \e[0m\n) )
@@ -37,9 +51,12 @@ int main(int argc, char* argv[])
   using fp32_fp32_t = Scalarhilo<float>;
   using bf16_bf16_t = Scalarhilo<__bf16>;
   using fp32_bf16_t = Scalarhilo<float, __bf16>;
-  using bf16_fp32_t = Scalarhilo<__bf16, float>;
+  using fp32_fp16_t = Scalarhilo<float, _Float16>;
+	using fp16_fp16_t = Scalarhilo<_Float16, _Float16>;
+  using bf16_bf16_t = Scalarhilo<__bf16, __bf16>;
   using bf16_fp16_t = Scalarhilo<__bf16, _Float16>;
-  
+	using fp16_bf16_t = Scalarhilo<_Float16, __bf16>;
+
   title(Array summations);
   {
     double res_fp64 = 0.0;
@@ -47,10 +64,12 @@ int main(int argc, char* argv[])
     float res_fp32 = 0.0;
     __bf16 res_bf16 = 0.0;
     fp32_fp32_t res_fp32_fp32 = 0.0;
-    bf16_bf16_t res_bf16_bf16 = 0.0;
     fp32_bf16_t res_fp32_bf16 = 0.0;
-    bf16_fp32_t res_bf16_fp32 = 0.0;
+    fp32_fp16_t res_fp32_fp16 = 0.0;
+    fp16_fp16_t res_fp16_fp16 = 0.0;
+    bf16_bf16_t res_bf16_bf16 = 0.0;
     bf16_fp16_t res_bf16_fp16 = 0.0;
+		fp16_bf16_t res_fp16_bf16 = 0.0;
 
 #define AllReduce(arr, N) \
   PerformReduction(arr, N, res_fp64); \
@@ -58,10 +77,12 @@ int main(int argc, char* argv[])
   PerformReduction(arr, N, res_fp16); \
   PerformReduction(arr, N, res_bf16); \
   PerformReduction(arr, N, res_fp32_fp32); \
-  PerformReduction(arr, N, res_bf16_bf16); \
   PerformReduction(arr, N, res_fp32_bf16); \
-  PerformReduction(arr, N, res_bf16_fp32); \
-  PerformReduction(arr, N, res_bf16_fp16); 
+  PerformReduction(arr, N, res_fp32_fp16); \
+  PerformReduction(arr, N, res_fp16_fp16); \
+  PerformReduction(arr, N, res_bf16_bf16); \
+  PerformReduction(arr, N, res_bf16_fp16); \
+	PerformReduction(arr, N, res_fp16_bf16);
 
 #define AllReduceSingleThread(arr, N) \
   PerformRedSingleThread(arr, N, res_fp64); \
@@ -69,10 +90,12 @@ int main(int argc, char* argv[])
   PerformRedSingleThread(arr, N, res_fp16); \
   PerformRedSingleThread(arr, N, res_bf16); \
   PerformRedSingleThread(arr, N, res_fp32_fp32); \
-  PerformRedSingleThread(arr, N, res_bf16_bf16); \
   PerformRedSingleThread(arr, N, res_fp32_bf16); \
-  PerformRedSingleThread(arr, N, res_bf16_fp32); \
-  PerformRedSingleThread(arr, N, res_bf16_fp16); 
+  PerformRedSingleThread(arr, N, res_fp32_fp16); \
+  PerformRedSingleThread(arr, N, res_fp16_fp16); \
+  PerformRedSingleThread(arr, N, res_bf16_bf16); \
+  PerformRedSingleThread(arr, N, res_bf16_fp16); \
+	PerformRedSingleThread(arr, N, res_fp16_bf16); \
 
 #define AllPrint() \
   printf("Results (ScalarType, AccumulatorType))\n"); \
@@ -82,14 +105,18 @@ int main(int argc, char* argv[])
   printf("bf16 (no EFT)\t: %.32e\n", (double)res_bf16); \
   printf("fp32, fp32\t: %.32e + %.32e\n\t\t= %.32e\n"\
       , res_fp32_fp32.hi, res_fp32_fp32.lo, res_fp32_fp32.finalize()); \
-  printf("bf16, bf16\t: %.32e + %.32e\n\t\t= %.32e\n"\
-      , (double)res_bf16_bf16.hi, (double)res_bf16_bf16.lo, (double)res_bf16_bf16.finalize()); \
   printf("fp32, bf16\t: %.32e + %.32e\n\t\t= %.32e\n"\
       , res_fp32_bf16.hi, (double)res_fp32_bf16.lo, res_fp32_bf16.finalize()); \
-  printf("bf16, fp32\t: %.32e + %.32e\n\t\t= %.32e\n"\
-      , (double)res_bf16_fp32.hi, res_bf16_fp32.lo, (double)res_bf16_fp32.finalize()); \
-  printf("bf16, fp16\t: %.32e + %.32e\n\t\n"\
-      , (double)res_bf16_fp16.hi, (double) res_bf16_fp16.lo, (double)res_bf16_fp16.finalize());
+  printf("fp32, fp16\t: %.32e + %.32e\n\t\t= %.32e\n"\
+      , res_fp32_fp16.hi, (double)res_fp32_fp16.lo, res_fp32_fp16.finalize()); \
+	printf("fp16, fp16\t: %.32e + %.32e\n\t\t= %.32e\n" \
+      , (double)res_fp16_fp16.hi, (double)res_fp16_fp16.lo, (double)res_fp16_fp16.finalize()); \
+  printf("bf16, bf16\t: %.32e + %.32e\n\t\t= %.32e\n" \
+      , (double)res_bf16_bf16.hi, (double)res_bf16_bf16.lo, (double)res_bf16_bf16.finalize()); \
+  printf("bf16, fp16\t: %.32e + %.32e\n\t\t= %.32e\n" \
+      , (double)res_bf16_fp16.hi, (double) res_bf16_fp16.lo, (double)res_bf16_fp16.finalize()); \
+  printf("fp16, bf16\t: %.32e + %.32e\n\t\t= %.32e\n"\
+      , (double)res_fp16_bf16.hi, (double) res_fp16_bf16.lo, (double)res_fp16_bf16.finalize()); \
 
 #define ShowDiffFp64()\
    printf("Difference with fp64 result :\n"); \
@@ -99,15 +126,19 @@ int main(int argc, char* argv[])
    printf("bf16 (no EFT)\t: %.64e\n", res_fp64 - res_bf16); \
    printf("fp32, fp32\t: %.64e\n"\
        , (res_fp64 - res_fp32_fp32));\
-   printf("bf16, bf16\t: %.64e\n"\
-       , (res_fp64 - res_bf16_bf16)); \
    printf("fp32, bf16\t: %.64e\n"\
        , (res_fp64 - res_fp32_bf16)); \
-   printf("bf16, fp32\t: %.64e\n"\
-       , (res_fp64 - res_bf16_fp32)); \
+   printf("fp32, fp16\t: %.64e\n"\
+       , (res_fp64 - res_fp32_fp16)); \
+	 printf("fp16, fp16\t: %.64e\n"\
+			 , (res_fp64 - res_fp16_fp16)); \
+	 printf("bf16, bf16\t: %.64e\n"\
+       , (res_fp64 - res_bf16_bf16)); \
    printf("bf16, fp16\t: %.64e\n"\
-       , (res_fp64 - res_bf16_fp16));
-
+       , (res_fp64 - res_bf16_fp16)); \
+	printf("fp16, bf16\t: %.64e\n"\
+       , (res_fp64 - res_fp16_bf16));
+goto skip;
   subtitle(Init Type Test (one));
   {
     float one;
@@ -212,14 +243,21 @@ int main(int argc, char* argv[])
   AllReduceSingleThread(_Float16_4096p19_jdygv_sorted_rev, 4096);
   //AllPrint();
   ShowDiffFp64();
-  
+
   subtitle(Reduction on 4096 positive double (bad) );
   AllReduce(worstCase_4096, 4096);
   AllPrint();
   ShowDiffFp64();
 
+skip:
+  subtitle(Reduction on 4194304 positive double (bad) );
+  AllReduce(worstCaseSimple_4194304, 4194304);
+  AllPrint();
+  ShowDiffFp64();
+
   }
-  
+	return 0; // 
+///////////////////////////////////////////////////////////////////////////////
   title(Array reduction with error evolution profiling);
   {
     double res_fp64 = 0.0;
@@ -229,13 +267,21 @@ int main(int argc, char* argv[])
     float res_fp32 = 0.0;
     __bf16 res_bf16 = 0.0;
     fp32_fp32_t res_fp32_fp32 = 0.0;
-    bf16_bf16_t res_bf16_bf16 = 0.0;
     fp32_bf16_t res_fp32_bf16 = 0.0;
-    bf16_fp32_t res_bf16_fp32 = 0.0;
+    fp32_fp16_t res_fp32_fp16 = 0.0;
+    fp16_fp16_t res_fp16_fp16 = 0.0;
+    bf16_bf16_t res_bf16_bf16 = 0.0;
     bf16_fp16_t res_bf16_fp16 = 0.0;
 
-#define dist(A, B) fabs(A - B);
-#define dir(x, name) "../csv/" #name "/" #x
+#define RELATIVE_ERROR
+
+#ifdef RELATIVE_ERROR
+	#define dist(A, B) fabs((A - B)/A);
+	#define dir(x, name) "../csv/" #name "_RELATIVE_ERR/" #x
+#else
+	#define dist(A, B) fabs(A - B);
+	#define dir(x, name) "../csv/" #name "/" #x
+#endif
 
 #define IterProfile(arr, N, I, res)\
     {\
@@ -262,16 +308,62 @@ int main(int argc, char* argv[])
   IterProfile(arr, N, I, res_fp32)\
   IterProfile(arr, N, I, res_bf16)\
   IterProfile(arr, N, I, res_fp32_fp32)\
+  IterProfile(arr, N, I, res_fp32_bf16)\
+  IterProfile(arr, N, I, res_fp32_fp16)\
+  IterProfile(arr, N, I, res_fp16_fp16)\
   IterProfile(arr, N, I, res_bf16_bf16)\
-  IterProfile(arr, N, I, res_bf16_fp32)\
   IterProfile(arr, N, I, res_bf16_fp16)\
-  
+
+subtitle(error profiling);	
   AllIterSingleThread(_Float16_4096p19_jdygv, 4096, 1)
   AllIterSingleThread(_Float16_4096p19_jdygv_sorted, 4096, 1)
   AllIterSingleThread(_Float16_4096p19_jdygv_sorted_rev, 4096, 1)
   AllIterSingleThread(_Float16_16384p19_wxcse, 16384, 5)
   AllIterSingleThread(worstCase_4096, 4096, 1)
-  } 
+
+subtitle(significant digits profiling);
+
+#define dirsd(x, name) "../csv/" #name "_SIGNIFICANTD/" #x
+#define distsd(A, B) (A - B);
+
+#define IterProfileSignificantd(arr, N, I, res)\
+    {\
+      std::fstream file;\
+      std::filesystem::create_directory(dirsd(,));\
+      std::filesystem::create_directory(dirsd(,arr));\
+      file.open( dirsd(arr ## _ ## res ## _ ## I,arr), std::fstream::out);\
+      std::cout << "generating " << dirsd(arr ## _ ## res ## _ ## I, arr) << std::endl;\
+      res_fp64 = 0;\
+      res = 0;\
+      diff = 0;\
+      for(int i=0; i < N; i+=I)\
+      {\
+        PerformRedSingleThread(arr+i, I, res);\
+        PerformRedSingleThread(arr+i, I, res_fp64);\
+        diff = distsd(res_fp64, res);\
+        file << significand(res_fp64, diff) << "," << std::endl;\
+      }\
+      file.close();\
+    }//end define
+
+#define AllIterSingleThreadSD(arr, N, I)\
+  IterProfileSignificantd(arr, N, I, res_fp16)\
+  IterProfileSignificantd(arr, N, I, res_fp32)\
+  IterProfileSignificantd(arr, N, I, res_bf16)\
+  IterProfileSignificantd(arr, N, I, res_fp32_fp32)\
+  IterProfileSignificantd(arr, N, I, res_fp32_bf16)\
+  IterProfileSignificantd(arr, N, I, res_fp32_fp16)\
+  IterProfileSignificantd(arr, N, I, res_fp16_fp16)\
+  IterProfileSignificantd(arr, N, I, res_bf16_bf16)\
+  IterProfileSignificantd(arr, N, I, res_bf16_fp16)\
+	
+	AllIterSingleThreadSD(_Float16_4096p19_jdygv, 4096, 1)
+  AllIterSingleThreadSD(_Float16_4096p19_jdygv_sorted, 4096, 1)
+  AllIterSingleThreadSD(_Float16_4096p19_jdygv_sorted_rev, 4096, 1)
+  AllIterSingleThreadSD(_Float16_16384p19_wxcse, 16384, 5)
+  AllIterSingleThreadSD(worstCase_4096, 4096, 1)
+
+  }
 
   Kokkos::finalize();
 }

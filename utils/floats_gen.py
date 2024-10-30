@@ -65,7 +65,7 @@ if __name__=='__main__':
         name = ''.join(random.sample(string.ascii_lowercase,5))
 
     arrayname = typef+"_"+str(N)+"p"+str(prec)+"_"+name
-    """
+    """ <-- add or remove # to toggle
     #''' <-- add or remove # to toggle
     #unsorted
     print(typef+" "+arrayname+"["+str(N)+"] = {", end="")
@@ -105,13 +105,16 @@ if __name__=='__main__':
     print("\n};")
     #'''
     """
+    repeat = 4
     worst = worstCaseSimple(N)
-    print("double worstCaseSimple_"+str(N)+"["+str(N)+"] = {", end="")
-    for i in range(N):
-        if not((i % n)): #return line
-            print("\n",end="") 
-        printFloat(worst[i] , prec, PLUSIGN=False)
-        print(",",end="\t")
+    print("double worstCaseSimple_"+str(N*repeat)+
+          "["+str(N*repeat)+"] = {", end="")
+    for k in range(repeat):
+        for i in range(N):
+            if not((i % n)): #return line
+                print("\n",end="") 
+            printFloat(worst[i] , prec, PLUSIGN=False)
+            print(",",end="\t")
     print("\n};\n")
-
+    #"""
     exit(0) 
